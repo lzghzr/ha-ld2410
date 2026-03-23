@@ -11,7 +11,8 @@
         "select": {
             "distance_resolution": {"name": "Distance resolution"},
             "light_function": {"name": "Light function"},
-            "out_level": {"name": "OUT level"}
+            "out_level": {"name": "OUT level"},
+            "out_control": {"name": "OUT control"}
         },
         "number": {"light_sensitivity": {"name": "Light sensitivity"}}
     },

@@ -23,6 +23,7 @@ PARALLEL_UPDATES = 0
 OPTIONS = ["0.75 m", "0.20 m"]
 LIGHT_OPTIONS = ["off", "dimmer than", "brighter than"]
 OUT_LEVEL_OPTIONS = ["default low", "default high"]
+OUT_CONTROL_OPTIONS = ["auto", "low", "high"]
 
 
 async def async_setup_entry(
@@ -37,6 +38,7 @@ async def async_setup_entry(
             ResolutionSelect(coordinator),
             LightFunctionSelect(coordinator),
             OutLevelSelect(coordinator),
+            OutControlSelect(coordinator),
         ]
     )
 
@@ -117,3 +119,44 @@ class OutLevelSelect(Entity, SelectEntity):
     async def async_select_option(self, option: str) -> None:
         index = self.options.index(option)
         await self._device.cmd_set_light_config(out_level=index)
+
+
+class OutControlSelect(Entity, SelectEntity):
+    """Set output level."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_options = OUT_CONTROL_OPTIONS
+    _attr_entity_registry_enabled_default = True
+    _attr_icon = "mdi:electric-switch"
+    _attr_translation_key = "out_control"
+
+    def __init__(self, coordinator: DataCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.base_unique_id}-out_control"
+        self._out_control = 0
+
+    @property
+    def current_option(self) -> str | None:
+        return self.options[self._out_control]
+
+    @exception_handler
+    async def async_select_option(self, option: str) -> None:
+        index = self.options.index(option)
+        if self._out_control == 0:
+            self._out_control_mode = self.parsed_data.get("light_function", 0)
+            self._out_control_threshold = self.parsed_data.get("light_threshold", 0x80)
+            self._out_control_level = self.parsed_data.get("light_out_level", 0)
+        self._out_control = index
+
+        if index == 0:
+            await self._device.cmd_set_light_config(
+                mode=self._out_control_mode,
+                threshold=self._out_control_threshold,
+                out_level=self._out_control_level)
+        elif index == 1:
+            await self._device.cmd_set_light_config(mode=1, threshold=0, out_level=0)
+        elif index == 2:
+            await self._device.cmd_set_light_config(mode=1, threshold=0, out_level=1)
+
+        if self.parsed_data.get("occupancy") == 1 and index == 1:
+            await self._device.cmd_reboot()
