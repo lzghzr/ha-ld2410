@@ -142,6 +142,9 @@ class OutControlSelect(Entity, SelectEntity):
     @exception_handler
     async def async_select_option(self, option: str) -> None:
         index = self.options.index(option)
+        if self._out_control == index:
+            return
+
         if self._out_control == 0:
             self._out_control_mode = self.parsed_data.get("light_function", 0)
             self._out_control_threshold = self.parsed_data.get("light_threshold", 0x80)
