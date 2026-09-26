@@ -13,6 +13,8 @@ from ..const import (
     CMD_BT_SET_PWD,
     CMD_ENABLE_CFG,
     CMD_END_CFG,
+    CMD_SET_MANUAL_OUT,
+    CMD_GET_VOLTAGE,
     CMD_ENABLE_ENGINEERING,
     CMD_REBOOT,
     CMD_READ_PARAMS,
@@ -86,6 +88,7 @@ class LD2410(Device):
         params = await self.cmd_read_params()
         res = await self.cmd_get_resolution()
         await self.cmd_get_light_config()
+        await self.cmd_get_voltage()
         self._update_parsed_data(
             {
                 "move_gate_sensitivity": params.get("move_gate_sensitivity"),
@@ -117,7 +120,8 @@ class LD2410(Device):
         payload = _unwrap_frame(data, TX_HEADER, TX_FOOTER)
         if len(payload) < 2:
             raise OperationError("Response too short")
-        expected_ack = (int(raw_command[:4], 16) ^ 0x0001).to_bytes(2, "big")
+        expected_ack = bytes.fromhex(raw_command[:4])
+        expected_ack = bytes([expected_ack[0], expected_ack[1] | 0x01])
         command = payload[:2]
         if command != expected_ack:
             raise OperationError(
@@ -187,7 +191,7 @@ class LD2410(Device):
 
         Returns the protocol version and buffer size.
         """
-        response = await self._send_command(CMD_ENABLE_CFG + "0001")
+        response = await self._send_command(CMD_ENABLE_CFG + "0100")
         if not response or len(response) < 6 or response[:2] != b"\x00\x00":
             raise OperationError("Failed to enable configuration")
         proto_ver = int.from_bytes(response[2:4], "little")
@@ -199,6 +203,28 @@ class LD2410(Device):
         response = await self._send_command(CMD_END_CFG)
         if response != b"\x00\x00":
             raise OperationError("Failed to end configuration")
+
+    async def cmd_set_out_control(self, mode: int) -> None:
+        """Set OUT control: 0 for low, 1 for high, 2 for automatic."""
+        if mode not in (0, 1, 2):
+            raise ValueError("mode must be 0, 1, or 2")
+        await self.cmd_enable_config()
+        payload = mode.to_bytes(2, "little")
+        response = await self._send_command(CMD_SET_MANUAL_OUT + payload.hex())
+        if response != b"\x00\x00" + payload:
+            raise OperationError("Failed to set OUT control")
+        await self.cmd_end_config()
+
+    async def cmd_get_voltage(self) -> float:
+        """Read the module supply voltage in volts."""
+        await self.cmd_enable_config()
+        response = await self._send_command(CMD_GET_VOLTAGE)
+        if not response or len(response) < 4 or response[:2] != b"\x00\x00":
+            raise OperationError("Failed to read supply voltage")
+        voltage = int.from_bytes(response[2:4], "little") / 1000
+        await self.cmd_end_config()
+        self._update_parsed_data({"voltage": voltage})
+        return voltage
 
     async def cmd_enable_engineering_mode(self) -> None:
         """Enable engineering mode."""

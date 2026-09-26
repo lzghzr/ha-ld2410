@@ -33,6 +33,14 @@ CMD_ENABLE_CFG = "FF00"  # value: "0001"
 CMD_END_CFG = "FE00"  # value: (none)
 # return: status(2).
 
+# A6_MODES patched firmware: u16 LE 0=low, 1=high, 2=auto.
+CMD_SET_MANUAL_OUT = "A600"
+# return: status(2) + mode echo(2).
+
+# Read supply voltage (LD2401/LD2410 firmware command outside the public manual).
+CMD_GET_VOLTAGE = "AC00"
+# return: status(2) + voltage value(2, LE) in mV.
+
 # Set max detection gates (move & still) and absence delay (“nobody”).
 # Requires Config: YES                                 |  Reboot: NO (applies immediately, persists)
 CMD_SET_MAX_GATES_AND_NOBODY = "6000"
@@ -196,6 +204,8 @@ __all__ = [
     # command words (hex strings, little-endian)
     "CMD_ENABLE_CFG",
     "CMD_END_CFG",
+    "CMD_SET_MANUAL_OUT",
+    "CMD_GET_VOLTAGE",
     "CMD_SET_MAX_GATES_AND_NOBODY",
     "CMD_READ_PARAMS",
     "CMD_ENABLE_ENGINEERING",

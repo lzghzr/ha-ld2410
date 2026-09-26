@@ -22,8 +22,8 @@ PARALLEL_UPDATES = 0
 
 OPTIONS = ["0.75 m", "0.20 m"]
 LIGHT_OPTIONS = ["off", "dimmer than", "brighter than"]
-OUT_LEVEL_OPTIONS = ["default low", "default high"]
 OUT_CONTROL_OPTIONS = ["auto", "low", "high"]
+OUT_LEVEL_OPTIONS = ["default low", "default high"]
 
 
 async def async_setup_entry(
@@ -37,8 +37,8 @@ async def async_setup_entry(
         [
             ResolutionSelect(coordinator),
             LightFunctionSelect(coordinator),
-            OutLevelSelect(coordinator),
             OutControlSelect(coordinator),
+            OutLevelSelect(coordinator),
         ]
     )
 
@@ -142,24 +142,5 @@ class OutControlSelect(Entity, SelectEntity):
     @exception_handler
     async def async_select_option(self, option: str) -> None:
         index = self.options.index(option)
-        if self._out_control == index:
-            return
-
-        if self._out_control == 0:
-            self._out_control_mode = self.parsed_data.get("light_function", 0)
-            self._out_control_threshold = self.parsed_data.get("light_threshold", 0x80)
-            self._out_control_level = self.parsed_data.get("light_out_level", 0)
         self._out_control = index
-
-        if index == 0:
-            await self._device.cmd_set_light_config(
-                mode=self._out_control_mode,
-                threshold=self._out_control_threshold,
-                out_level=self._out_control_level)
-        elif index == 1:
-            await self._device.cmd_set_light_config(mode=1, threshold=0, out_level=0)
-        elif index == 2:
-            await self._device.cmd_set_light_config(mode=1, threshold=0, out_level=1)
-
-        if self.parsed_data.get("occupancy") == 1 and index == 1:
-            await self._device.cmd_reboot()
+        await self._device.cmd_set_out_control((2, 0, 1)[index])

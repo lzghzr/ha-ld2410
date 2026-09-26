@@ -1,6 +1,7 @@
 """Support for sensors."""
 
 from __future__ import annotations
+from datetime import timedelta
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -12,6 +13,7 @@ from homeassistant.const import (
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     LIGHT_LUX,
     EntityCategory,
+    UnitOfElectricPotential,
     UnitOfLength,
 )
 from homeassistant.core import HomeAssistant
@@ -29,6 +31,8 @@ from .coordinator import ConfigEntryType, DataCoordinator
 from .entity import Entity
 
 PARALLEL_UPDATES = 0
+
+SCAN_INTERVAL = timedelta(minutes=5)
 
 SENSOR_TYPES: dict[str, SensorEntityDescription] = {
     "rssi": SensorEntityDescription(
@@ -121,6 +125,15 @@ SENSOR_TYPES: dict[str, SensorEntityDescription] = {
         device_class=SensorDeviceClass.ILLUMINANCE,
         entity_registry_enabled_default=False,
     ),
+    "voltage": SensorEntityDescription(
+        key="voltage",
+        translation_key="supply_voltage",
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        suggested_display_precision=3,
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 }
 
 
@@ -132,9 +145,12 @@ async def async_setup_entry(
     """Set up sensors based on a config entry."""
     coordinator = entry.runtime_data
     entities = [
-        Sensor(coordinator, sensor) for sensor in SENSOR_TYPES if sensor != "rssi"
+        Sensor(coordinator, sensor)
+        for sensor in SENSOR_TYPES
+        if sensor not in ("rssi", "voltage")
     ]
     entities.append(RSSISensor(coordinator, "rssi"))
+    entities.append(VoltageSensor(coordinator, "voltage"))
     for key in ("move_gate_energy", "still_gate_energy"):
         for gate in range(9):
             entities.append(GateEnergySensor(coordinator, key, gate))
@@ -156,7 +172,7 @@ class Sensor(Entity, SensorEntity):
         self.entity_description = SENSOR_TYPES[sensor]
 
     @property
-    def native_value(self) -> str | int | None:
+    def native_value(self) -> str | int | float | None:
         """Return the state of the sensor."""
         return self.parsed_data.get(self.entity_description.key)
 
@@ -205,3 +221,18 @@ class RSSISensor(Sensor):
         """Return the state of the sensor."""
         rssi = self._device.rssi
         return None if rssi == -127 else rssi
+
+
+class VoltageSensor(Sensor):
+    """Representation of the module supply voltage."""
+
+    _attr_should_poll = True
+
+    async def async_update(self) -> None:
+        await self._device.cmd_get_voltage()
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the state of the sensor."""
+        voltage = self.parsed_data.get("voltage")
+        return voltage
